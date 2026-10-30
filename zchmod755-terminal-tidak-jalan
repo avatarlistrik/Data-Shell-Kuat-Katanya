@@ -1,0 +1,385 @@
+<?php
+/**
+ * Script interaktif untuk mengubah permission directory menjadi 755 dan file menjadi 644
+ * Path: /www/wwwroot/jurnal.radenfatah.ac.id/plugins
+ * 
+ * Directory 755 = rwxr-xr-x (Owner: read/write/execute, Group: read/execute, Others: read/execute)
+ * File 644 = rw-r--r-- (Owner: read/write, Group: read, Others: read)
+ */
+
+$defaultDirectory = '/www/wwwroot/jurnal.radenfatah.ac.id/plugins';
+$message = '';
+$summary = [];
+
+// Proses form jika disubmit
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $directory = isset($_POST['directory']) ? trim($_POST['directory']) : $defaultDirectory;
+    $recursive = isset($_POST['recursive']);
+    $dirPermission = 0755;
+    $filePermission = 0644;
+    
+    if (!empty($directory)) {
+        // Cek directory
+        if (!is_dir($directory)) {
+            $message = "Error: Directory '$directory' tidak ditemukan!";
+        } else {
+            // Proses chmod
+            $results = [];
+            $dirPerm = substr(sprintf('%o', $dirPermission), -4);
+            $filePerm = substr(sprintf('%o', $filePermission), -4);
+            
+            $results[] = "📁 Target Directory: $directory";
+            $results[] = "📂 Directory Permission Target: $dirPerm (755)";
+            $results[] = "📄 File Permission Target: $filePerm (644)";
+            $results[] = str_repeat('=', 60);
+            
+            // Hitung statistik
+            $dirCount = 0;
+            $fileCount = 0;
+            $dirFailed = 0;
+            $fileFailed = 0;
+            
+            // Ubah permission directory utama
+            if (chmod($directory, $dirPermission)) {
+                $results[] = "✅ Directory '$directory' diubah menjadi $dirPerm (755)";
+                $dirCount++;
+            } else {
+                $results[] = "❌ Gagal mengubah permission directory '$directory'";
+                $dirFailed++;
+            }
+            
+            // Jika recursive, proses semua isi directory
+            if ($recursive) {
+                $iterator = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
+                    RecursiveIteratorIterator::SELF_FIRST
+                );
+                
+                foreach ($iterator as $item) {
+                    $path = $item->getPathname();
+                    
+                    if ($item->isDir()) {
+                        // Ubah permission directory
+                        if (chmod($path, $dirPermission)) {
+                            $results[] = "✅ Directory '$path' diubah menjadi $dirPerm (755)";
+                            $dirCount++;
+                        } else {
+                            $results[] = "❌ Gagal mengubah permission directory '$path'";
+                            $dirFailed++;
+                        }
+                    } elseif ($item->isFile()) {
+                        // Ubah permission file
+                        if (chmod($path, $filePermission)) {
+                            $results[] = "✅ File '$path' diubah menjadi $filePerm (644)";
+                            $fileCount++;
+                        } else {
+                            $results[] = "❌ Gagal mengubah permission file '$path'";
+                            $fileFailed++;
+                        }
+                    }
+                }
+            }
+            
+            // Summary
+            $results[] = str_repeat('=', 60);
+            $results[] = "📊 SUMMARY:";
+            $results[] = "📁 Directory berhasil: $dirCount";
+            if ($dirFailed > 0) $results[] = "⚠️  Directory gagal: $dirFailed";
+            $results[] = "📄 File berhasil: $fileCount";
+            if ($fileFailed > 0) $results[] = "⚠️  File gagal: $fileFailed";
+            $results[] = "✨ Selesai!";
+            
+            $message = implode("\n", $results);
+        }
+    } else {
+        $message = "Error: Directory path tidak boleh kosong!";
+    }
+}
+
+// Ambil informasi permission saat ini
+$currentDirPerm = '';
+$currentFilePerm = '';
+if (is_dir($defaultDirectory)) {
+    $currentDirPerm = substr(sprintf('%o', fileperms($defaultDirectory)), -4);
+    
+    // Ambil contoh file pertama untuk melihat permission file
+    $files = scandir($defaultDirectory);
+    foreach ($files as $file) {
+        if ($file !== '.' && $file !== '..') {
+            $filePath = $defaultDirectory . '/' . $file;
+            if (is_file($filePath)) {
+                $currentFilePerm = substr(sprintf('%o', fileperms($filePath)), -4);
+                break;
+            }
+        }
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Change Permission to 755 (Directory) & 644 (File)</title>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #f0f2f5; 
+            padding: 40px 20px;
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 { 
+            color: #1a73e8; 
+            border-bottom: 2px solid #1a73e8; 
+            padding-bottom: 10px; 
+            margin-bottom: 20px;
+        }
+        .info { 
+            background: #e8f0fe; 
+            padding: 15px; 
+            border-radius: 6px; 
+            margin-bottom: 20px;
+            border-left: 4px solid #1a73e8;
+        }
+        .info strong { color: #1a73e8; }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .info-item {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .info-item .label { font-weight: 600; color: #333; }
+        .info-item .value { 
+            font-family: monospace; 
+            font-size: 14px;
+            color: #1a73e8;
+        }
+        .form-group { margin-bottom: 20px; }
+        label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: 600; 
+            color: #333;
+        }
+        input[type="text"] { 
+            width: 100%; 
+            padding: 10px; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        input[type="text"]:focus {
+            border-color: #1a73e8;
+            outline: none;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .checkbox-group label {
+            margin-bottom: 0;
+            cursor: pointer;
+        }
+        button { 
+            background: #1a73e8; 
+            color: white; 
+            padding: 12px 30px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 16px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        button:hover { background: #1557b0; }
+        .message { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            margin-top: 20px; 
+            border-radius: 4px; 
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 600px;
+            overflow-y: auto;
+            border-left: 4px solid #1a73e8;
+            line-height: 1.6;
+        }
+        .message.success { border-left-color: #34a853; }
+        .message.error { border-left-color: #ea4335; }
+        .current-perm {
+            background: #f1f3f4;
+            padding: 8px 12px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-top: 5px;
+            font-family: monospace;
+        }
+        .warning {
+            background: #fef7e0;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border-left: 4px solid #fbbc04;
+        }
+        .warning strong { color: #e37400; }
+        small { color: #666; display: block; margin-top: 3px; }
+        .path-display {
+            background: #f1f3f4;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .stat-box {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stat-box .number {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1a73e8;
+        }
+        .stat-box .label {
+            font-size: 12px;
+            color: #666;
+        }
+        .permission-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .permission-table th {
+            background: #f1f3f4;
+            padding: 8px;
+            text-align: left;
+        }
+        .permission-table td {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .permission-table .perm-value {
+            font-family: monospace;
+            font-weight: bold;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🔐 Change Permission: Directory 755 & File 644</h2>
+        
+        <div class="info">
+            <strong>Target Permission:</strong>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="label">📁 Directory</div>
+                    <div class="value">755 = rwxr-xr-x</div>
+                    <div style="font-size:12px;color:#666;margin-top:3px;">
+                        Owner: rwx (7) | Group: r-x (5) | Others: r-x (5)
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="label">📄 File</div>
+                    <div class="value">644 = rw-r--r--</div>
+                    <div style="font-size:12px;color:#666;margin-top:3px;">
+                        Owner: rw- (6) | Group: r-- (4) | Others: r-- (4)
+                    </div>
+                </div>
+            </div>
+            
+            <br>
+            <strong>Target Path:</strong> 
+            <span class="path-display"><?php echo htmlspecialchars($defaultDirectory); ?></span>
+            
+            <?php if ($currentDirPerm || $currentFilePerm): ?>
+                <br><br>
+                <strong>Current Permission:</strong>
+                <div class="info-grid">
+                    <?php if ($currentDirPerm): ?>
+                        <div class="info-item">
+                            <div class="label">📁 Directory</div>
+                            <div class="value"><?php echo $currentDirPerm; ?></div>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($currentFilePerm): ?>
+                        <div class="info-item">
+                            <div class="label">📄 File (sample)</div>
+                            <div class="value"><?php echo $currentFilePerm; ?></div>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Perhatian:</strong> 
+            Permission 755 untuk directory dan 644 untuk file adalah permission standar yang aman untuk web server.
+            Directory bisa dibaca, ditulis, dan dieksekusi oleh owner, serta dibaca dan dieksekusi oleh group dan others.
+            File bisa dibaca dan ditulis oleh owner, serta dibaca oleh group dan others.
+        </div>
+        
+        <form method="post">
+            <div class="form-group">
+                <label for="directory">Directory Path:</label>
+                <input type="text" name="directory" id="directory" 
+                       value="<?php echo isset($_POST['directory']) ? htmlspecialchars($_POST['directory']) : htmlspecialchars($defaultDirectory); ?>">
+                <small>Gunakan path absolut atau relatif</small>
+            </div>
+            
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" name="recursive" id="recursive" <?php echo isset($_POST['recursive']) ? 'checked' : ''; ?>>
+                    <label for="recursive">Apply recursively (ubah semua sub-directory dan file)</label>
+                </div>
+                <small>Centang untuk mengubah semua folder dan file di dalam plugins</small>
+            </div>
+            
+            <button type="submit">Change Permission to 755 (Dir) & 644 (File)</button>
+        </form>
+        
+        <?php if ($message): ?>
+            <div class="message <?php echo strpos($message, 'Error') !== false ? 'error' : 'success'; ?>">
+                <?php echo nl2br(htmlspecialchars($message)); ?>
+            </div>
+        <?php endif; ?>
+    </div>
+</body>
+</html>
