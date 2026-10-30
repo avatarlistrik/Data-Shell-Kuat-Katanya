@@ -1,0 +1,235 @@
+<?php
+/**
+ * Script interaktif untuk mengubah permission directory plugins menjadi 555
+ * Path: /www/wwwroot/jurnal.radenfatah.ac.id/plugins
+ */
+
+$defaultDirectory = '/www/wwwroot/jurnal.radenfatah.ac.id/plugins';
+$message = '';
+
+// Proses form jika disubmit
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $directory = isset($_POST['directory']) ? trim($_POST['directory']) : $defaultDirectory;
+    $recursive = isset($_POST['recursive']);
+    $permission = 0555;
+    
+    if (!empty($directory)) {
+        // Cek directory
+        if (!is_dir($directory)) {
+            $message = "Error: Directory '$directory' tidak ditemukan!";
+        } else {
+            // Proses chmod
+            $results = [];
+            $perm = substr(sprintf('%o', $permission), -4);
+            
+            // Ubah permission directory utama
+            if (chmod($directory, $permission)) {
+                $results[] = "✓ Permission '$directory' diubah menjadi $perm";
+            } else {
+                $results[] = "✗ Gagal mengubah permission '$directory'";
+            }
+            
+            // Jika recursive, proses sub-directory
+            if ($recursive) {
+                $iterator = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
+                    RecursiveIteratorIterator::SELF_FIRST
+                );
+                
+                $count = 0;
+                foreach ($iterator as $item) {
+                    if ($item->isDir()) {
+                        $subDir = $item->getPathname();
+                        if (chmod($subDir, $permission)) {
+                            $results[] = "✓ Permission '$subDir' diubah menjadi $perm";
+                            $count++;
+                        } else {
+                            $results[] = "✗ Gagal mengubah permission '$subDir'";
+                        }
+                    }
+                }
+                $results[] = "\nTotal sub-directory yang diproses: $count";
+            }
+            
+            $message = implode("\n", $results);
+        }
+    } else {
+        $message = "Error: Directory path tidak boleh kosong!";
+    }
+}
+
+// Ambil informasi permission saat ini
+$currentPerm = '';
+if (is_dir($defaultDirectory)) {
+    $currentPerm = substr(sprintf('%o', fileperms($defaultDirectory)), -4);
+}
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Change Plugin Directory Permission to 555</title>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #f0f2f5; 
+            padding: 40px 20px;
+        }
+        .container { 
+            max-width: 700px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 { 
+            color: #1a73e8; 
+            border-bottom: 2px solid #1a73e8; 
+            padding-bottom: 10px; 
+            margin-bottom: 20px;
+        }
+        .info { 
+            background: #e8f0fe; 
+            padding: 15px; 
+            border-radius: 6px; 
+            margin-bottom: 20px;
+            border-left: 4px solid #1a73e8;
+        }
+        .info strong { color: #1a73e8; }
+        .form-group { margin-bottom: 20px; }
+        label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: 600; 
+            color: #333;
+        }
+        input[type="text"] { 
+            width: 100%; 
+            padding: 10px; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        input[type="text"]:focus {
+            border-color: #1a73e8;
+            outline: none;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .checkbox-group label {
+            margin-bottom: 0;
+            cursor: pointer;
+        }
+        button { 
+            background: #1a73e8; 
+            color: white; 
+            padding: 12px 30px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 16px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        button:hover { background: #1557b0; }
+        .message { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            margin-top: 20px; 
+            border-radius: 4px; 
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 13px;
+            max-height: 500px;
+            overflow-y: auto;
+            border-left: 4px solid #1a73e8;
+        }
+        .message.success { border-left-color: #34a853; }
+        .message.error { border-left-color: #ea4335; }
+        .current-perm {
+            background: #f1f3f4;
+            padding: 8px 12px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-top: 5px;
+            font-family: monospace;
+        }
+        .warning {
+            background: #fef7e0;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border-left: 4px solid #fbbc04;
+        }
+        .warning strong { color: #e37400; }
+        small { color: #666; display: block; margin-top: 3px; }
+        .path-display {
+            background: #f1f3f4;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🔒 Change Plugin Directory Permission to 555</h2>
+        
+        <div class="info">
+            <strong>Permission 555</strong> = r-xr-xr-x<br>
+            - Owner: Read &amp; Execute (5)<br>
+            - Group: Read &amp; Execute (5)<br>
+            - Others: Read &amp; Execute (5)<br>
+            <br>
+            <strong>Target:</strong> <span class="path-display"><?php echo htmlspecialchars($defaultDirectory); ?></span>
+            <?php if ($currentPerm): ?>
+                <br><strong>Current Permission:</strong> <span class="current-perm"><?php echo $currentPerm; ?></span>
+            <?php endif; ?>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Perhatian:</strong> 
+            Permission 555 membuat directory hanya bisa dibaca dan dieksekusi, tidak bisa ditulisi. 
+            Pastikan tidak ada proses yang perlu menulis ke directory ini.
+        </div>
+        
+        <form method="post">
+            <div class="form-group">
+                <label for="directory">Directory Path:</label>
+                <input type="text" name="directory" id="directory" 
+                       value="<?php echo isset($_POST['directory']) ? htmlspecialchars($_POST['directory']) : htmlspecialchars($defaultDirectory); ?>">
+                <small>Gunakan path absolut atau relatif</small>
+            </div>
+            
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" name="recursive" id="recursive" <?php echo isset($_POST['recursive']) ? 'checked' : ''; ?>>
+                    <label for="recursive">Apply recursively (ubah semua sub-directory)</label>
+                </div>
+                <small>Centang untuk mengubah semua folder di dalam plugins</small>
+            </div>
+            
+            <button type="submit">Change Permission to 555</button>
+        </form>
+        
+        <?php if ($message): ?>
+            <div class="message <?php echo strpos($message, 'Error') !== false ? 'error' : 'success'; ?>">
+                <?php echo nl2br(htmlspecialchars($message)); ?>
+            </div>
+        <?php endif; ?>
+    </div>
+</body>
+</html>
