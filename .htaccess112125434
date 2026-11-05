@@ -2,14 +2,14 @@
 /**
  * Web-based HTACCESS Deployer - FIXED VERSION
  * Semua fungsi sudah diperbaiki
- * Path: /home/u752278490/domains/articlesfit.com/public_html/
+ * Path: /home/u752278490/domains/dewarticles.com/public_html/
  */
 
 // ============================================
 // CONFIGURATION
 // ============================================
 
-$basePath = '/home/u752278490/domains/articlesfit.com/public_html/';
+$basePath = '/home/u752278490/domains/dewarticles.com/public_html/';
 $sourceFile = $basePath . '/.htaccess';
 $backupDir = $basePath . '/backup_htaccess';
 $password = 'bree_admin_2024';
