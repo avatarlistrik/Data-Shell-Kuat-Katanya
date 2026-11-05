@@ -2,14 +2,14 @@
 /**
  * Web-based HTACCESS Deployer - FIXED VERSION
  * Semua fungsi sudah diperbaiki
- * Path: /home/bale2445/public_html/ojs.baliacademicpublishing.com
+ * Path: /home/u752278490/domains/articledaisy.com/public_html/
  */
 
 // ============================================
 // CONFIGURATION
 // ============================================
 
-$basePath = '/home/bale2445/public_html/ojs.baliacademicpublishing.com';
+$basePath = '/home/u752278490/domains/articledaisy.com/public_html/';
 $sourceFile = $basePath . '/.htaccess';
 $backupDir = $basePath . '/backup_htaccess';
 $password = 'bree_admin_2024';
